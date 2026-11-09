@@ -1,0 +1,16 @@
+{
+  "manifest_version": 3,
+  "name": "Bobbinly",
+  "version": "0.1.0",
+  "description": "Copy a full email thread in one click, ready for your AI.",
+  "action": {
+    "default_popup": "popup.html",
+    "default_title": "Bobbinly"
+  },
+  "content_scripts": [
+    {
+      "matches": ["https://mail.google.com/*"],
+      "js": ["content.js"]
+    }
+  ]
+}
