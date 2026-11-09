@@ -283,11 +283,12 @@ function createPanel() {
       .title { font-size: 17px; font-weight: 600; letter-spacing: -0.2px; }
       .close {
         all: unset; width: 24px; height: 24px; border-radius: 50%;
-        text-align: center; line-height: 24px; font-size: 13px;
-        color: #6e6e73; background: rgba(0, 0, 0, 0.06); cursor: pointer;
+        display: flex; align-items: center; justify-content: center;
+        font-size: 13px; color: #6e6e73; background: rgba(0, 0, 0, 0.06);
+        cursor: pointer; transition: background 0.15s, color 0.15s;
       }
-      .close:hover { background: rgba(0, 0, 0, 0.12); }
-
+      #closeBtn:hover { background: #ff5f57; color: #fff; }
+      #spoolBtn:hover { background: #28c840; color: #fff; }
       /* Inner glass sections */
       .modes, .fields {
         background: rgba(255, 255, 255, 0.5);
@@ -310,7 +311,7 @@ function createPanel() {
       /* Fields */
       .fields { margin-top: 12px; padding: 4px 12px 12px; }
       .fields label { display: block; margin-top: 10px; font-size: 12px; color: #6e6e73; }
-      textarea, select {
+      input, textarea, select {
         width: 100%; margin-top: 4px; padding: 8px 10px;
         font: inherit; font-size: 13px; color: #1d1d1f;
         background: rgba(255, 255, 255, 0.5);
@@ -328,16 +329,24 @@ function createPanel() {
       .copy:hover { background: #0068d9; }
       .copy:active { transform: scale(0.98); }
 
-      #status { margin-top: 8px; min-height: 16px; font-size: 12px; color: #6e6e73; text-align: center; }
+      #status, #spoolStatus { margin-top: 8px; min-height: 16px; font-size: 12px; color: #6e6e73; text-align: center; }
       p { margin: 6px 0 0; text-align: center; }
       a { color: #007aff; text-decoration: none; font-size: 12px; }
+      .actions { display: flex; gap: 6px; } 
     </style>
 
     <div class="panel">
       <div class="header">
-        <span class="title">Bobbinly</span>
-        <button class="close" id="closeBtn">✕</button>
+        <span class="title" id="title">Bobbinly</span>
+        <div class="actions">
+          <button class="close" id="spoolBtn" title="Your Spool">
+            <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><circle cx="12" cy="12" r="3"/><path d="M19.4 15a1.65 1.65 0 0 0 .33 1.82l.06.06a2 2 0 1 1-2.83 2.83l-.06-.06a1.65 1.65 0 0 0-1.82-.33 1.65 1.65 0 0 0-1 1.51V21a2 2 0 1 1-4 0v-.09A1.65 1.65 0 0 0 9 19.4a1.65 1.65 0 0 0-1.82.33l-.06.06a2 2 0 1 1-2.83-2.83l.06-.06A1.65 1.65 0 0 0 4.68 15a1.65 1.65 0 0 0-1.51-1H3a2 2 0 1 1 0-4h.09A1.65 1.65 0 0 0 4.6 9a1.65 1.65 0 0 0-.33-1.82l-.06-.06a2 2 0 1 1 2.83-2.83l.06.06A1.65 1.65 0 0 0 9 4.68a1.65 1.65 0 0 0 1-1.51V3a2 2 0 1 1 4 0v.09a1.65 1.65 0 0 0 1 1.51 1.65 1.65 0 0 0 1.82-.33l.06-.06a2 2 0 1 1 2.83 2.83l-.06.06A1.65 1.65 0 0 0 19.4 9a1.65 1.65 0 0 0 1.51 1H21a2 2 0 1 1 0 4h-.09a1.65 1.65 0 0 0-1.51 1z"/></svg>
+          </button>
+          <button class="close" id="closeBtn">✕</button>
+        </div>
       </div>
+
+      <div id="mainView">
 
       <div class="modes">
         <label><input type="radio" name="mode" value="plain" checked> Plain thread</label>
@@ -369,6 +378,24 @@ function createPanel() {
       <button class="copy" id="copyBtn">Copy thread</button>
       <div id="status"></div>
       <p><a href="#" id="spoolLink">Edit Your Spool</a></p>
+      </div>
+
+      <div id="spoolView" style="display:none">
+        <div class="fields">
+          <label>Your name
+            <input id="spoolName" placeholder="e.g. Ethan">
+          </label>
+          <label>About you
+            <textarea id="spoolAbout" placeholder="e.g. Aerospace engineering student at UC"></textarea>
+          </label>
+          <label>How you write
+            <textarea id="spoolStyle" placeholder="e.g. Short and direct. Sign off with 'Best, Ethan'"></textarea>
+          </label>
+        </div>
+        <button class="copy" id="saveSpoolBtn">Save</button>
+        <div id="spoolStatus"></div>
+        <p><a href="#" id="backLink">‹ Back</a></p>
+      </div>
     </div>
   `;
 
@@ -440,9 +467,38 @@ function createPanel() {
   });
 
   // "Edit Your Spool": ask background.js to open the settings page
-  $("spoolLink").addEventListener("click", (e) => {
-    e.preventDefault();
-    chrome.runtime.sendMessage({ action: "openSpool" });
+  // Switch between the main view and Your Spool
+  const showView = (name) => {
+    $("mainView").style.display = name === "main" ? "block" : "none";
+    $("spoolView").style.display = name === "spool" ? "block" : "none";
+    $("title").innerText = name === "spool" ? "Your Spool" : "Bobbinly";
+  };
+
+  // Load saved values, then show the Spool view
+  const openSpool = async () => {
+    const data = await chrome.storage.sync.get(["name", "about", "style"]);
+    $("spoolName").value = data.name || "";
+    $("spoolAbout").value = data.about || "";
+    $("spoolStyle").value = data.style || "";
+    $("spoolStatus").innerText = "";
+    showView("spool");
+  };
+
+  // ⚙ toggles between the two views
+  $("spoolBtn").addEventListener("click", () => {
+    $("spoolView").style.display === "block" ? showView("main") : openSpool();
+  });
+  $("spoolLink").addEventListener("click", (e) => { e.preventDefault(); openSpool(); });
+  $("backLink").addEventListener("click", (e) => { e.preventDefault(); showView("main"); });
+
+  // Save
+  $("saveSpoolBtn").addEventListener("click", async () => {
+    await chrome.storage.sync.set({
+      name: $("spoolName").value.trim(),
+      about: $("spoolAbout").value.trim(),
+      style: $("spoolStyle").value.trim()
+    });
+    $("spoolStatus").innerText = "Saved to your Spool.";
   });
 }
 
