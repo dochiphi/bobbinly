@@ -13,6 +13,19 @@ const GMAIL = {
   collapsedRow: "div.kv div.iA"    // clickable part of a collapsed message
 };
 
+// Self-check: which essential GMAIL names find nothing?
+function checkGmailNames() {
+  const required = ["subject", "message", "sender", "date", "body"];
+  const missing = required.filter((key) => !document.querySelector(GMAIL[key]));
+
+  // All missing = no thread open (normal). Some missing = Gmail probably changed.
+  if (missing.length > 0 && missing.length < required.length) {
+    console.warn("Bobbinly: Gmail may have changed. Not found:", missing.join(", "));
+    return missing;
+  }
+  return [];
+}
+
 function extractMessages() {
   const messages = document.querySelectorAll(GMAIL.message);
   const results = [];
@@ -45,6 +58,7 @@ function getMyEmail() {
 
 async function getThreadText() {
   await expandAll();
+  const missing = checkGmailNames();
   const subjectEl = document.querySelector(GMAIL.subject);
   if (!subjectEl) return null; // no thread open
 
@@ -55,7 +69,8 @@ async function getThreadText() {
 
   return {
     text: buildPlainText(subjectEl.innerText, messages),
-    lastIsMine: !!(me && last && last.email.toLowerCase() === me)
+    lastIsMine: !!(me && last && last.email.toLowerCase() === me),
+    missing: missing
   };
 }
 

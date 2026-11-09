@@ -68,6 +68,9 @@ document.getElementById("copyBtn").addEventListener("click", async () => {
     const output = getMode() === "prompt" ? buildPrompt(response.text, spool, response.lastIsMine) : response.text;
     await navigator.clipboard.writeText(output);
     status.innerText = getMode() === "prompt" ? "Prompt copied! Paste it into your AI." : "Thread copied! Paste it into your AI.";
+    if (response.missing && response.missing.length) {
+      status.innerText += " Some parts may be missing: Gmail may have changed.";
+    }
   } catch (err) {
     status.innerText = "Open Gmail first (refresh it once if it's already open).";
   }
