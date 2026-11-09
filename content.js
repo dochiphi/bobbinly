@@ -24,17 +24,32 @@ function extractMessages() {
 }
 
 // One function that does the whole job, used by both the popup and Alt + B
+// Your account email, read from the tab title ("... - you@gmail.com - Gmail")
+function getMyEmail() {
+  const found = document.title.match(/[\w.+-]+@[\w-]+\.[\w.-]+/);
+  return found ? found[0].toLowerCase() : null;
+}
+
 async function getThreadText() {
   await expandAll();
   const subjectEl = document.querySelector("h2.hP");
   if (!subjectEl) return null; // no thread open
-  return buildPlainText(subjectEl.innerText, removeRepeats(extractMessages()));
+
+  const messages = removeRepeats(extractMessages());
+  const me = getMyEmail();
+  const last = messages[messages.length - 1];
+  console.log("Bobbinly me:", me); // temporary check
+
+  return {
+    text: buildPlainText(subjectEl.innerText, messages),
+    lastIsMine: !!(me && last && last.email.toLowerCase() === me)
+  };
 }
 
 // Listen for the popup asking for the thread
 chrome.runtime.onMessage.addListener((request, sender, sendResponse) => {
   if (request.action === "getThread") {
-    getThreadText().then((text) => sendResponse({ text: text }));
+    getThreadText().then((result) => sendResponse(result || {}));
     return true; // tells Chrome the answer will come later
   }
 });
@@ -42,8 +57,8 @@ chrome.runtime.onMessage.addListener((request, sender, sendResponse) => {
 // Keep Alt + B as a shortcut
 document.addEventListener("keydown", async (e) => {
   if (e.altKey && e.key.toLowerCase() === "b") {
-    const text = await getThreadText();
-    if (text) await navigator.clipboard.writeText(text);
+    const result = await getThreadText();
+    if (result) await navigator.clipboard.writeText(result.text);
   }
 });
 
@@ -179,7 +194,7 @@ function tidyLabels(lines) {
   const kept = lines.filter((l, i) => {
     if (!isAttribution(l)) return true;
     const next = lines.slice(i + 1).find((x) => x.trim() !== "");
-    return !(next && isLabel(next));
+    return next !== undefined && !isLabel(next); // drop if a label follows, or nothing follows
   });
 
   // Rule 2: merge labels that follow each other (blank lines between them are skipped)

@@ -13,7 +13,7 @@ document.querySelectorAll('input[name="mode"]').forEach((r) => r.addEventListene
 updateFields();
 
 // Wrap the thread in the structured prompt
-function buildPrompt(threadText, spool) {
+function buildPrompt(threadText, spool, lastIsMine) {
   const idea = document.getElementById("idea").value.trim();
   const relationship = document.getElementById("relationship").value;
   const tone = document.getElementById("tone").value;
@@ -37,7 +37,9 @@ function buildPrompt(threadText, spool) {
     threadText,
     "",
     "## Task",
-    "Write my reply to the latest message in this thread.",
+    lastIsMine
+      ? "The latest message in this thread is mine and has no reply yet. Write a polite follow-up."
+      : "Write my reply to the latest message in this thread.",
     "",
     "## My idea",
     idea || "(No specific idea. Suggest the best reply.)",
@@ -63,7 +65,7 @@ document.getElementById("copyBtn").addEventListener("click", async () => {
       return;
     }
     const spool = await chrome.storage.sync.get(["name", "about", "style"]);
-    const output = getMode() === "prompt" ? buildPrompt(response.text, spool) : response.text;
+    const output = getMode() === "prompt" ? buildPrompt(response.text, spool, response.lastIsMine) : response.text;
     await navigator.clipboard.writeText(output);
     status.innerText = getMode() === "prompt" ? "Prompt copied! Paste it into your AI." : "Thread copied! Paste it into your AI.";
   } catch (err) {
