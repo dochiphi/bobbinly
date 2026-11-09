@@ -7,8 +7,3 @@ chrome.action.onClicked.addListener(async (tab) => {
     console.log("Bobbinly: no Gmail page here");
   }
 });
-
-// The panel can't open the settings page itself, so it asks us
-chrome.runtime.onMessage.addListener((request) => {
-  if (request.action === "openSpool") chrome.runtime.openOptionsPage();
-});
