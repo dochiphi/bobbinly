@@ -6,8 +6,10 @@
   "permissions": ["storage"],
   "options_page": "options.html",
   "action": {
-    "default_popup": "popup.html",
     "default_title": "Bobbinly"
+  },
+  "background": {
+    "service_worker": "background.js"
   },
   "content_scripts": [
     {

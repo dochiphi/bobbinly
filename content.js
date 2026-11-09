@@ -76,7 +76,10 @@ async function getThreadText() {
 
 // Listen for the popup asking for the thread
 chrome.runtime.onMessage.addListener((request, sender, sendResponse) => {
-  if (request.action === "getThread") {
+  if (request.action === "togglePanel") {
+    togglePanel();
+  }
+    if (request.action === "getThread") {
     getThreadText().then((result) => sendResponse(result || {}));
     return true; // tells Chrome the answer will come later
   }
@@ -246,4 +249,240 @@ function tidyLabels(lines) {
       ? (x.length === 1 ? "[repeats message #" + x[0] + "]" : "[repeats messages #" + x.join(", #") + "]")
       : x
   );
+}
+
+// ---------- Floating glass panel ----------
+let panelHost = null;
+
+function createPanel() {
+  panelHost = document.createElement("div");
+  document.body.appendChild(panelHost);
+
+  // Shadow DOM: a sealed bubble. Gmail's styles can't get in, ours can't leak out.
+  const shadow = panelHost.attachShadow({ mode: "open" });
+  shadow.innerHTML = `
+    <style>
+      :host { all: initial; }
+      * { box-sizing: border-box; }
+
+      /* The glass panel */
+      .panel {
+        position: fixed; top: 72px; right: 24px; z-index: 2147483647;
+        width: 320px; padding: 16px;
+        font-family: -apple-system, BlinkMacSystemFont, "SF Pro Text", "Segoe UI", sans-serif;
+        color: #1d1d1f;
+        background: rgba(226, 226, 226, 0.66);
+        backdrop-filter: blur(20px) saturate(180%);
+        border: 0.5px solid rgba(216, 215, 215, 0.6);
+        border-radius: 22px;
+        box-shadow: 0 12px 40px rgba(0, 0, 0, 0.18);
+      }
+
+      /* Header with title and close button */
+      .header { display: flex; align-items: center; justify-content: space-between; margin-bottom: 12px; cursor: grab; user-select: none; }
+      .title { font-size: 17px; font-weight: 600; letter-spacing: -0.2px; }
+      .close {
+        all: unset; width: 24px; height: 24px; border-radius: 50%;
+        text-align: center; line-height: 24px; font-size: 13px;
+        color: #6e6e73; background: rgba(0, 0, 0, 0.06); cursor: pointer;
+      }
+      .close:hover { background: rgba(0, 0, 0, 0.12); }
+
+      /* Inner glass sections */
+      .modes, .fields {
+        background: rgba(255, 255, 255, 0.5);
+        border: 0.5px solid rgba(207, 207, 207, 0.3);
+        border-radius: 14px;
+      }
+
+      /* Segmented control */
+      .modes { display: flex; padding: 3px; }
+      .modes label {
+        flex: 1; padding: 6px 0; text-align: center; border-radius: 11px;
+        font-size: 13px; color: #6e6e73; cursor: pointer; transition: all 0.2s;
+      }
+      .modes input { display: none; }
+      .modes label:has(input:checked) {
+        background: #fff; color: #1d1d1f; font-weight: 500;
+        box-shadow: 0 1px 4px rgba(0, 0, 0, 0.12);
+      }
+
+      /* Fields */
+      .fields { margin-top: 12px; padding: 4px 12px 12px; }
+      .fields label { display: block; margin-top: 10px; font-size: 12px; color: #6e6e73; }
+      textarea, select {
+        width: 100%; margin-top: 4px; padding: 8px 10px;
+        font: inherit; font-size: 13px; color: #1d1d1f;
+        background: rgba(255, 255, 255, 0.5);
+        border: 0.5px solid rgba(0, 0, 0, 0.08); border-radius: 10px; outline: none;
+      }
+      textarea { height: 64px; resize: vertical; }
+      textarea:focus, select:focus { border-color: #007aff; box-shadow: 0 0 0 3px rgba(0, 122, 255, 0.2); }
+
+      /* Main button */
+      .copy {
+        width: 100%; margin-top: 14px; padding: 11px; border: none; border-radius: 12px;
+        background: #007aff; color: #fff; font: inherit; font-size: 15px; font-weight: 500;
+        cursor: pointer; transition: transform 0.1s, background 0.2s;
+      }
+      .copy:hover { background: #0068d9; }
+      .copy:active { transform: scale(0.98); }
+
+      #status { margin-top: 8px; min-height: 16px; font-size: 12px; color: #6e6e73; text-align: center; }
+      p { margin: 6px 0 0; text-align: center; }
+      a { color: #007aff; text-decoration: none; font-size: 12px; }
+    </style>
+
+    <div class="panel">
+      <div class="header">
+        <span class="title">Bobbinly</span>
+        <button class="close" id="closeBtn">✕</button>
+      </div>
+
+      <div class="modes">
+        <label><input type="radio" name="mode" value="plain" checked> Plain thread</label>
+        <label><input type="radio" name="mode" value="prompt"> AI prompt</label>
+      </div>
+
+      <div class="fields" id="promptFields">
+        <label>My idea for the reply
+          <textarea id="idea" placeholder="e.g. Say yes, but ask to move it to Friday"></textarea>
+        </label>
+        <label>Recipient is my
+          <select id="relationship">
+            <option>Boss / manager</option><option>Professor</option><option>Client</option>
+            <option>Coworker</option><option>Friend</option><option>Other</option>
+          </select>
+        </label>
+        <label>Tone
+          <select id="tone">
+            <option>Professional</option><option>Friendly</option><option>Firm</option><option>Apologetic</option>
+          </select>
+        </label>
+        <label>Length
+          <select id="length">
+            <option>Short</option><option>Medium</option><option>Long</option>
+          </select>
+        </label>
+      </div>
+
+      <button class="copy" id="copyBtn">Copy thread</button>
+      <div id="status"></div>
+      <p><a href="#" id="spoolLink">Edit Your Spool</a></p>
+    </div>
+  `;
+
+  // Drag the panel by its header
+  const panel = shadow.querySelector(".panel");
+  const header = shadow.querySelector(".header");
+  let drag = null;
+
+  header.addEventListener("mousedown", (e) => {
+    if (e.target.closest(".close")) return; // clicking ✕ shouldn't start a drag
+    const r = panel.getBoundingClientRect();
+    drag = { dx: e.clientX - r.left, dy: e.clientY - r.top }; // where you grabbed it
+    e.preventDefault(); // stops text from being selected while dragging
+  });
+
+  window.addEventListener("mousemove", (e) => {
+    if (!drag) return;
+    // Keep the panel inside the window
+    const x = Math.min(Math.max(0, e.clientX - drag.dx), window.innerWidth - panel.offsetWidth);
+    const y = Math.min(Math.max(0, e.clientY - drag.dy), window.innerHeight - panel.offsetHeight);
+    panel.style.left = x + "px";
+    panel.style.top = y + "px";
+    panel.style.right = "auto"; // stop sticking to the right edge
+  }, true);
+
+  window.addEventListener("mouseup", () => { drag = null; }, true);
+  // Close button hides the panel
+  shadow.getElementById("closeBtn").addEventListener("click", () => {
+    panelHost.style.display = "none";
+  });
+    const $ = (id) => shadow.getElementById(id);
+  const status = $("status");
+
+  // Mode switch: show the fields only in AI prompt mode
+  const getMode = () => shadow.querySelector('input[name="mode"]:checked').value;
+  const updateFields = () => {
+    $("promptFields").style.display = getMode() === "prompt" ? "block" : "none";
+  };
+  shadow.querySelectorAll('input[name="mode"]').forEach((r) => r.addEventListener("change", updateFields));
+  updateFields();
+
+  // Copy button
+  $("copyBtn").addEventListener("click", async () => {
+    status.innerText = "Working...";
+    const result = await getThreadText();
+    if (!result) {
+      status.innerText = "Open an email thread first.";
+      return;
+    }
+
+    let output = result.text;
+    if (getMode() === "prompt") {
+      const spool = await chrome.storage.sync.get(["name", "about", "style"]);
+      output = buildPrompt(result.text, spool, result.lastIsMine, {
+        idea: $("idea").value.trim(),
+        relationship: $("relationship").value,
+        tone: $("tone").value,
+        length: $("length").value
+      });
+    }
+
+    try {
+      await navigator.clipboard.writeText(output);
+      status.innerText = getMode() === "prompt" ? "Prompt copied! Paste it into your AI." : "Thread copied! Paste it into your AI.";
+      if (result.missing.length) status.innerText += " Some parts may be missing: Gmail may have changed.";
+    } catch (err) {
+      status.innerText = "Couldn't copy. Click inside Gmail once and try again.";
+    }
+  });
+
+  // "Edit Your Spool": ask background.js to open the settings page
+  $("spoolLink").addEventListener("click", (e) => {
+    e.preventDefault();
+    chrome.runtime.sendMessage({ action: "openSpool" });
+  });
+}
+
+// Icon click: create the panel the first time, then show/hide it
+function togglePanel() {
+  if (!panelHost) { createPanel(); return; }
+  panelHost.style.display = panelHost.style.display === "none" ? "block" : "none";
+}
+
+function buildPrompt(threadText, spool, lastIsMine, f) {
+  const lines = [];
+
+  if (spool.name || spool.about) {
+    lines.push("## About me");
+    if (spool.name) lines.push("Name: " + spool.name);
+    if (spool.about) lines.push(spool.about);
+    lines.push("");
+  }
+
+  lines.push(
+    "## Recipient",
+    "My " + f.relationship.toLowerCase(),
+    "",
+    "## Email thread",
+    threadText,
+    "",
+    "## Task",
+    lastIsMine
+      ? "The latest message in this thread is mine and has no reply yet. Write a polite follow-up."
+      : "Write my reply to the latest message in this thread.",
+    "",
+    "## My idea",
+    f.idea || "(No specific idea. Suggest the best reply.)",
+    "",
+    "## Constraints",
+    "Tone: " + f.tone,
+    "Length: " + f.length
+  );
+  if (spool.style) lines.push("My writing style: " + spool.style);
+  lines.push("Output: the reply body only, no subject line.");
+
+  return lines.join("\n");
 }
