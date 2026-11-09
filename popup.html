@@ -3,13 +3,54 @@
 <head>
   <meta charset="UTF-8">
   <style>
-    body { width: 260px; font-family: sans-serif; padding: 12px; }
-    button { width: 100%; padding: 10px; font-size: 14px; cursor: pointer; }
+    body { width: 300px; font-family: sans-serif; padding: 12px; }
+    label { display: block; font-size: 12px; margin-top: 8px; color: #333; }
+    textarea, select { width: 100%; box-sizing: border-box; margin-top: 2px; font-size: 13px; }
+    textarea { height: 60px; resize: vertical; }
+    .modes { display: flex; gap: 12px; font-size: 13px; }
+    button { width: 100%; padding: 10px; font-size: 14px; cursor: pointer; margin-top: 12px; }
     #status { margin-top: 8px; font-size: 12px; color: #555; }
   </style>
 </head>
 <body>
   <h3>Bobbinly</h3>
+
+  <div class="modes">
+    <label><input type="radio" name="mode" value="plain" checked> Plain thread</label>
+    <label><input type="radio" name="mode" value="prompt"> AI prompt</label>
+  </div>
+
+  <div id="promptFields">
+    <label>My idea for the reply
+      <textarea id="idea" placeholder="e.g. Say yes, but ask to move it to Friday"></textarea>
+    </label>
+    <label>Recipient is my
+      <select id="relationship">
+        <option>Boss / manager</option>
+        <option>Professor</option>
+        <option>Client</option>
+        <option>Coworker</option>
+        <option>Friend</option>
+        <option>Other</option>
+      </select>
+    </label>
+    <label>Tone
+      <select id="tone">
+        <option>Professional</option>
+        <option>Friendly</option>
+        <option>Firm</option>
+        <option>Apologetic</option>
+      </select>
+    </label>
+    <label>Length
+      <select id="length">
+        <option>Short</option>
+        <option>Medium</option>
+        <option>Long</option>
+      </select>
+    </label>
+  </div>
+
   <button id="copyBtn">Copy thread</button>
   <div id="status"></div>
   <script src="popup.js"></script>
