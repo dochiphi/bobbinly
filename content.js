@@ -8,12 +8,15 @@ function extractMessages() {
     const senderEl = msg.querySelector("span.gD");
     const dateEl = msg.querySelector("span.g3");
     const bodyEl = msg.querySelector("div.a3s");
+    // File names from Gmail's attachment area (Set removes duplicates)
+    const files = [...new Set([...msg.querySelectorAll("span.aV3")].map((s) => s.innerText.trim()))];
 
     results.push({
       sender: senderEl ? senderEl.getAttribute("name") : "(unknown)",
       email: senderEl ? senderEl.getAttribute("email") : "",
       date: dateEl ? dateEl.getAttribute("title") : "",
-      body: bodyEl ? cleanBody(bodyEl) : "(empty)"
+      body: bodyEl ? cleanBody(bodyEl) : "(empty)",
+      attachments: files
     });
   });
 
@@ -100,7 +103,9 @@ function buildPlainText(subject, messages) {
 
   messages.forEach((m, i) => {
     text += "[" + (i + 1) + "] From: " + m.sender + " <" + m.email + "> | Date: " + m.date + "\n";
-    text += m.body + "\n\n";
+    text += m.body + "\n";
+    if (m.attachments.length) text += "[Attachments: " + m.attachments.join(", ") + "]\n";
+    text += "\n";
   });
 
   return text.trim();
@@ -165,3 +170,4 @@ function removeRepeats(messages) {
 
   return messages;
 }
+
