@@ -1,15 +1,28 @@
 console.log("Bobbinly loaded");
 
+// All of Gmail's class names in one place.
+// If Gmail changes one, fix it here and nowhere else.
+const GMAIL = {
+  subject: "h2.hP",                // thread subject
+  message: "div.adn",              // one expanded message
+  sender: "span.gD",               // sender name + email
+  date: "span.g3",                 // date (full date in its title)
+  body: "div.a3s",                 // message body
+  attachment: "span.aV3",          // attachment file name
+  olderCircle: "span.adx",         // "N older messages" circle
+  collapsedRow: "div.kv div.iA"    // clickable part of a collapsed message
+};
+
 function extractMessages() {
-  const messages = document.querySelectorAll("div.adn");
+  const messages = document.querySelectorAll(GMAIL.message);
   const results = [];
 
   messages.forEach((msg) => {
-    const senderEl = msg.querySelector("span.gD");
-    const dateEl = msg.querySelector("span.g3");
-    const bodyEl = msg.querySelector("div.a3s");
+    const senderEl = msg.querySelector(GMAIL.sender);
+    const dateEl = msg.querySelector(GMAIL.date);
+    const bodyEl = msg.querySelector(GMAIL.body);
     // File names from Gmail's attachment area (Set removes duplicates)
-    const files = [...new Set([...msg.querySelectorAll("span.aV3")].map((s) => s.innerText.trim()))];
+    const files = [...new Set([...msg.querySelectorAll(GMAIL.attachment)].map((s) => s.innerText.trim()))];
 
     results.push({
       sender: senderEl ? senderEl.getAttribute("name") : "(unknown)",
@@ -32,7 +45,7 @@ function getMyEmail() {
 
 async function getThreadText() {
   await expandAll();
-  const subjectEl = document.querySelector("h2.hP");
+  const subjectEl = document.querySelector(GMAIL.subject);
   if (!subjectEl) return null; // no thread open
 
   const messages = removeRepeats(extractMessages());
@@ -72,8 +85,8 @@ async function expandAll() {
   for (let i = 0; i < 50; i++) {
     // Circle first, then collapsed rows (clicked on the inner part Gmail listens to)
     const next =
-      document.querySelector("span.adx") ||
-      document.querySelector("div.kv div.iA");
+      document.querySelector(GMAIL.olderCircle) ||
+      document.querySelector(GMAIL.collapsedRow);
 
     if (!next) {
       console.log("Bobbinly: all expanded after", i, "clicks");
