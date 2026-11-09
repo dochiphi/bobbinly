@@ -13,13 +13,23 @@ document.querySelectorAll('input[name="mode"]').forEach((r) => r.addEventListene
 updateFields();
 
 // Wrap the thread in the structured prompt
-function buildPrompt(threadText) {
+function buildPrompt(threadText, spool) {
   const idea = document.getElementById("idea").value.trim();
   const relationship = document.getElementById("relationship").value;
   const tone = document.getElementById("tone").value;
   const length = document.getElementById("length").value;
 
-  return [
+  const lines = [];
+
+  // About me: only added if the Spool has something in it
+  if (spool.name || spool.about) {
+    lines.push("## About me");
+    if (spool.name) lines.push("Name: " + spool.name);
+    if (spool.about) lines.push(spool.about);
+    lines.push("");
+  }
+
+  lines.push(
     "## Recipient",
     "My " + relationship.toLowerCase(),
     "",
@@ -34,9 +44,12 @@ function buildPrompt(threadText) {
     "",
     "## Constraints",
     "Tone: " + tone,
-    "Length: " + length,
-    "Output: the reply body only, no subject line."
-  ].join("\n");
+    "Length: " + length
+  );
+  if (spool.style) lines.push("My writing style: " + spool.style);
+  lines.push("Output: the reply body only, no subject line.");
+
+  return lines.join("\n");
 }
 
 document.getElementById("copyBtn").addEventListener("click", async () => {
@@ -49,10 +62,13 @@ document.getElementById("copyBtn").addEventListener("click", async () => {
       status.innerText = "Open an email thread first.";
       return;
     }
-    const output = getMode() === "prompt" ? buildPrompt(response.text) : response.text;
+    const spool = await chrome.storage.sync.get(["name", "about", "style"]);
+    const output = getMode() === "prompt" ? buildPrompt(response.text, spool) : response.text;
     await navigator.clipboard.writeText(output);
     status.innerText = getMode() === "prompt" ? "Prompt copied! Paste it into your AI." : "Thread copied! Paste it into your AI.";
   } catch (err) {
     status.innerText = "Open Gmail first (refresh it once if it's already open).";
   }
 });
+
+document.getElementById("spoolLink").addEventListener("click", () => chrome.runtime.openOptionsPage());
