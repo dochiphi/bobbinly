@@ -1,0 +1,33 @@
+<!DOCTYPE html>
+<html>
+<head>
+  <meta charset="UTF-8">
+  <title>Bobbinly: Your Spool</title>
+  <style>
+    body { max-width: 480px; margin: 40px auto; font-family: sans-serif; }
+    label { display: block; margin-top: 14px; font-size: 14px; }
+    input, textarea { width: 100%; box-sizing: border-box; margin-top: 4px; font-size: 14px; padding: 6px; }
+    textarea { height: 70px; }
+    button { margin-top: 16px; padding: 10px 20px; font-size: 14px; cursor: pointer; }
+    #status { margin-top: 10px; color: green; }
+  </style>
+</head>
+<body>
+  <h2>Your Spool</h2>
+  <p>Who you are. Added to every AI prompt so replies sound like you.</p>
+
+  <label>Your name
+    <input id="name" placeholder="e.g. Phi">
+  </label>
+  <label>About you
+    <textarea id="about" placeholder="e.g. Mechanical engineering student at UC, looking for co-ops"></textarea>
+  </label>
+  <label>How you write
+    <textarea id="style" placeholder="e.g. Short and direct. Sign off with 'Best, Phi'"></textarea>
+  </label>
+
+  <button id="saveBtn">Save</button>
+  <div id="status"></div>
+  <script src="options.js"></script>
+</body>
+</html>

@@ -3,6 +3,8 @@
   "name": "Bobbinly",
   "version": "0.1.0",
   "description": "Copy a full email thread in one click, ready for your AI.",
+  "permissions": ["storage"],
+  "options_page": "options.html",
   "action": {
     "default_popup": "popup.html",
     "default_title": "Bobbinly"
