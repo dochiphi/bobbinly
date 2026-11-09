@@ -49,7 +49,6 @@ function extractMessages() {
   return results;
 }
 
-// One function that does the whole job, used by both the popup and Alt + B
 // Your account email, read from the tab title ("... - you@gmail.com - Gmail")
 function getMyEmail() {
   const found = document.title.match(/[\w.+-]+@[\w-]+\.[\w.-]+/);
@@ -78,10 +77,6 @@ async function getThreadText() {
 chrome.runtime.onMessage.addListener((request, sender, sendResponse) => {
   if (request.action === "togglePanel") {
     togglePanel();
-  }
-    if (request.action === "getThread") {
-    getThreadText().then((result) => sendResponse(result || {}));
-    return true; // tells Chrome the answer will come later
   }
 });
 
@@ -296,17 +291,29 @@ function createPanel() {
         border-radius: 14px;
       }
 
-      /* Segmented control */
-      .modes { display: flex; padding: 3px; }
+      /* Segmented control with a sliding pill */
+      .modes { display: flex; padding: 3px; position: relative; }
+
+      /* The white pill, drawn behind the labels */
+      .modes::before {
+        content: "";
+        position: absolute; top: 3px; bottom: 3px; left: 3px;
+        width: calc(50% - 3px);
+        background: #fff; border-radius: 11px;
+        box-shadow: 0 1px 4px rgba(0, 0, 0, 0.12);
+        transition: transform 0.35s cubic-bezier(0.25, 1, 0.5, 1);
+      }
+
+      /* When "AI prompt" is chosen, slide the pill to the right half */
+      .modes:has(input[value="prompt"]:checked)::before { transform: translateX(100%); }
+
       .modes label {
+        position: relative; z-index: 1;   /* keep the text above the pill */
         flex: 1; padding: 6px 0; text-align: center; border-radius: 11px;
-        font-size: 13px; color: #6e6e73; cursor: pointer; transition: all 0.2s;
+        font-size: 13px; color: #6e6e73; cursor: pointer; transition: color 0.2s;
       }
       .modes input { display: none; }
-      .modes label:has(input:checked) {
-        background: #fff; color: #1d1d1f; font-weight: 500;
-        box-shadow: 0 1px 4px rgba(0, 0, 0, 0.12);
-      }
+      .modes label:has(input:checked) { color: #1d1d1f; font-weight: 500; }
 
       /* Fields */
       .fields { margin-top: 12px; padding: 4px 12px 12px; }
@@ -333,6 +340,52 @@ function createPanel() {
       p { margin: 6px 0 0; text-align: center; }
       a { color: #007aff; text-decoration: none; font-size: 12px; }
       .actions { display: flex; gap: 6px; } 
+      /* Enter animations */
+      @keyframes slideInRight { from { opacity: 0; transform: translateX(24px); }  to { opacity: 1; transform: none; } }
+      @keyframes slideInLeft  { from { opacity: 0; transform: translateX(-24px); } to { opacity: 1; transform: none; } }
+      @keyframes fadeDown     { from { opacity: 0; transform: translateY(-6px); }  to { opacity: 1; transform: none; } }
+
+      .enter-right { animation: slideInRight 0.3s cubic-bezier(0.25, 1, 0.5, 1); }
+      .enter-left  { animation: slideInLeft 0.3s cubic-bezier(0.25, 1, 0.5, 1); }
+      .enter-down  { animation: fadeDown 0.25s ease-out; }
+      /* Keep the button the same height with text or with the bobbin */
+      .copy { display: flex; align-items: center; justify-content: center; min-height: 44px; }
+
+      /* Winding bobbin loader */
+      .bobbin .flange { fill: #fff; }
+      .bobbin .core   { fill: rgba(255, 255, 255, 0.45); }
+      .bobbin .thread {
+        stroke: #fff; stroke-width: 1.6; stroke-linecap: round;
+        stroke-dasharray: 10 12;      /* one line-length of thread, then a gap */
+        stroke-dashoffset: 10;        /* start hidden */
+        animation: wind 1.4s ease-in-out infinite;
+      }
+      /* Bottom line first, each one a bit later: thread winds upward */
+      .bobbin .thread:nth-of-type(5) { animation-delay: 0s; }
+      .bobbin .thread:nth-of-type(4) { animation-delay: 0.1s; }
+      .bobbin .thread:nth-of-type(3) { animation-delay: 0.2s; }
+      .bobbin .thread:nth-of-type(2) { animation-delay: 0.3s; }
+      .bobbin .thread:nth-of-type(1) { animation-delay: 0.4s; }
+
+      @keyframes wind {
+        0%   { stroke-dashoffset: 10; }    /* hidden on the left */
+        45%  { stroke-dashoffset: 0; }     /* fully drawn */
+        55%  { stroke-dashoffset: 0; }     /* short hold */
+        100% { stroke-dashoffset: -10; }   /* slides off to the right */
+      }
+      /* Success: green button + a tick that draws itself */
+      .copy.success { background: #28c840; }
+      .check path {
+        fill: none; stroke: #fff; stroke-width: 2.4;
+        stroke-linecap: round; stroke-linejoin: round;
+        stroke-dasharray: 20; stroke-dashoffset: 20;   /* start hidden */
+        animation: draw 0.35s ease-out forwards;       /* forwards = stay drawn at the end */
+      }
+      @keyframes draw { to { stroke-dashoffset: 0; } }
+      @media (prefers-reduced-motion: reduce) {
+        * { animation: none !important; transition: none !important; }
+        .check path { stroke-dashoffset: 0; }
+      }
     </style>
 
     <div class="panel">
@@ -428,41 +481,82 @@ function createPanel() {
   });
     const $ = (id) => shadow.getElementById(id);
   const status = $("status");
+  // Replays an enter animation on an element
+  const animateIn = (el, cls) => {
+    el.classList.remove("enter-right", "enter-left", "enter-down");
+    void el.offsetWidth; // forces the browser to restart the animation
+    el.classList.add(cls);
+  };
 
   // Mode switch: show the fields only in AI prompt mode
   const getMode = () => shadow.querySelector('input[name="mode"]:checked').value;
   const updateFields = () => {
-    $("promptFields").style.display = getMode() === "prompt" ? "block" : "none";
+    const show = getMode() === "prompt";
+    $("promptFields").style.display = show ? "block" : "none";
+    if (show) animateIn($("promptFields"), "enter-down");
   };
   shadow.querySelectorAll('input[name="mode"]').forEach((r) => r.addEventListener("change", updateFields));
   updateFields();
+  // Bobbinly loader: a bobbin with thread winding onto it
+  const BOBBIN_LOADER = `
+    <svg class="bobbin" width="22" height="22" viewBox="0 0 24 24">
+      <rect class="flange" x="4" y="2" width="16" height="3" rx="1.5"/>
+      <rect class="flange" x="4" y="19" width="16" height="3" rx="1.5"/>
+      <rect class="core" x="10" y="5" width="4" height="14"/>
+      <line class="thread" x1="7" y1="7"    x2="17" y2="7"/>
+      <line class="thread" x1="7" y1="9.5"  x2="17" y2="9.5"/>
+      <line class="thread" x1="7" y1="12"   x2="17" y2="12"/>
+      <line class="thread" x1="7" y1="14.5" x2="17" y2="14.5"/>
+      <line class="thread" x1="7" y1="17"   x2="17" y2="17"/>
+    </svg>`;
 
-  // Copy button
+  const CHECK_MARK = `
+    <svg class="check" width="22" height="22" viewBox="0 0 24 24">
+      <path d="M5 12.5l4.5 4.5L19 7.5"/>
+    </svg>`;
+
+    // Copy button
   $("copyBtn").addEventListener("click", async () => {
-    status.innerText = "Working...";
-    const result = await getThreadText();
-    if (!result) {
-      status.innerText = "Open an email thread first.";
-      return;
-    }
-
-    let output = result.text;
-    if (getMode() === "prompt") {
-      const spool = await chrome.storage.sync.get(["name", "about", "style"]);
-      output = buildPrompt(result.text, spool, result.lastIsMine, {
-        idea: $("idea").value.trim(),
-        relationship: $("relationship").value,
-        tone: $("tone").value,
-        length: $("length").value
-      });
-    }
+    const btn = $("copyBtn");
+    btn.disabled = true;
+    let copied = false;
+    btn.innerHTML = BOBBIN_LOADER;
+    status.innerText = "";
 
     try {
+      const result = await getThreadText();
+      if (!result) {
+        status.innerText = "Open an email thread first.";
+        return;
+      }
+
+      let output = result.text;
+      if (getMode() === "prompt") {
+        const spool = await chrome.storage.sync.get(["name", "about", "style"]);
+        output = buildPrompt(result.text, spool, result.lastIsMine, {
+          idea: $("idea").value.trim(),
+          relationship: $("relationship").value,
+          tone: $("tone").value,
+          length: $("length").value
+        });
+      }
+
       await navigator.clipboard.writeText(output);
+      copied = true;
       status.innerText = getMode() === "prompt" ? "Prompt copied! Paste it into your AI." : "Thread copied! Paste it into your AI.";
       if (result.missing.length) status.innerText += " Some parts may be missing: Gmail may have changed.";
     } catch (err) {
-      status.innerText = "Couldn't copy. Click inside Gmail once and try again.";
+      status.innerText = "Something went wrong. Click inside Gmail once and try again.";
+    } finally {
+      if (copied) {
+        btn.classList.add("success");
+        btn.innerHTML = CHECK_MARK;
+        await new Promise((r) => setTimeout(r, 1200)); // show the tick for 1.2 seconds
+        btn.classList.remove("success");
+      }
+      // Always runs: puts the button back, even after an error or early return
+      btn.disabled = false;
+      btn.innerText = "Copy thread";
     }
   });
 
@@ -472,6 +566,7 @@ function createPanel() {
     $("mainView").style.display = name === "main" ? "block" : "none";
     $("spoolView").style.display = name === "spool" ? "block" : "none";
     $("title").innerText = name === "spool" ? "Your Spool" : "Bobbinly";
+    animateIn(name === "spool" ? $("spoolView") : $("mainView"), name === "spool" ? "enter-right" : "enter-left");
   };
 
   // Load saved values, then show the Spool view
