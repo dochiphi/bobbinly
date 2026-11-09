@@ -74,7 +74,7 @@ async function expandAll() {
 
 function cleanBody(bodyEl) {
   const copy = bodyEl.cloneNode(true); // work on a copy, never touch Gmail's page
-  copy.querySelectorAll(".gmail_quote, blockquote").forEach((q) => q.remove());
+  
   // Images: keep emoji, mark real images, drop invisible tracking pixels
   copy.querySelectorAll("img").forEach((img) => {
     const alt = img.getAttribute("alt") || "";
@@ -165,9 +165,42 @@ function removeRepeats(messages) {
       j = end;
     }
 
-    m.body = out.join("\n").replace(/\n{3,}/g, "\n\n").trim();
+    m.body = tidyLabels(out).join("\n").replace(/\n{3,}/g, "\n\n").trim();
   });
 
   return messages;
 }
 
+function tidyLabels(lines) {
+  const isLabel = (l) => /^\[repeats message #\d+\]$/.test(l);
+  const isAttribution = (l) => /<[^>\s]+@[^>\s]+>/.test(l) && l.length < 200;
+
+  // Rule 1: drop "On ... <email> wrote:" lines that sit right before a label
+  const kept = lines.filter((l, i) => {
+    if (!isAttribution(l)) return true;
+    const next = lines.slice(i + 1).find((x) => x.trim() !== "");
+    return !(next && isLabel(next));
+  });
+
+  // Rule 2: merge labels that follow each other (blank lines between them are skipped)
+  const out = [];
+  let group = null;
+  kept.forEach((l) => {
+    if (isLabel(l)) {
+      const n = l.match(/\d+/)[0];
+      if (!group) { group = []; out.push(group); }
+      if (!group.includes(n)) group.push(n);
+    } else if (l.trim() === "" && group) {
+      // blank line inside a run of labels: skip it
+    } else {
+      group = null;
+      out.push(l);
+    }
+  });
+
+  return out.map((x) =>
+    Array.isArray(x)
+      ? (x.length === 1 ? "[repeats message #" + x[0] + "]" : "[repeats messages #" + x.join(", #") + "]")
+      : x
+  );
+}
