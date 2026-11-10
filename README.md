@@ -37,6 +37,19 @@ Using AI to reply to a long email thread means copying the whole conversation fi
 
 ---
 
+## A note on using AI
+
+Your own reply matters the most. Bobbinly helps you give an AI the full context, but the AI is only an assistant. It can misread a thread, get facts or dates wrong, or sound unlike you.
+
+- **Read every draft before you send it.** You're the one sending it, not the AI.
+- **Check the details:** names, dates, numbers, and anything you're agreeing to.
+- **Make it yours.** Edit the draft until it says what you actually mean, in your own voice.
+- **Think before pasting sensitive emails.** Once you paste a thread into an AI tool, it's handled under that tool's privacy policy, not Bobbinly's.
+
+Use AI to get started faster, not to stop thinking.
+
+---
+
 ## How it works
 
 **Extraction.** A content script reads Gmail's page directly. It clicks open collapsed messages one at a time (so it never closes one it already opened), then reads each message's sender, date, body, and attachments.
