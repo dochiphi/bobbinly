@@ -1,5 +1,3 @@
-console.log("Bobbinly loaded");
-
 // All of Gmail's class names in one place.
 // If Gmail changes one, fix it here and nowhere else.
 const GMAIL = {
@@ -64,7 +62,6 @@ async function getThreadText() {
   const messages = removeRepeats(extractMessages());
   const me = getMyEmail();
   const last = messages[messages.length - 1];
-  console.log("Bobbinly me:", me); // temporary check
 
   return {
     text: buildPlainText(subjectEl.innerText, messages),
@@ -102,14 +99,11 @@ async function expandAll() {
       document.querySelector(GMAIL.collapsedRow);
 
     if (!next) {
-      console.log("Bobbinly: all expanded after", i, "clicks");
       return true;
     }
-    console.log("Bobbinly: clicking", next.className);
     realClick(next);
     await new Promise((r) => setTimeout(r, 300));
   }
-  console.log("Bobbinly: gave up after 50 clicks");
   return false;
 }
 
