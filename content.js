@@ -53,7 +53,85 @@ function getMyEmail() {
   return found ? found[0].toLowerCase() : null;
 }
 
+// ---------- Outlook on the web ----------
+const IS_OUTLOOK = location.hostname.includes("outlook");
+
+// Outlook's markers. These IDs and roles don't change with language or styling.
+const OUTLOOK = {
+  subject: '[id^="CONV_"][id$="_SUBJECT"]',                     // conversation subject
+  from: '[id^="MSG_"][id$="_FROM"]',                            // sender name
+  date: '[id^="MSG_"][id$="_DATETIME"]',                        // date and time
+  body: '[id^="UniqueMessageBody"]',                            // message body
+  attachments: '[id^="MSG_"][id$="_ATTACHMENTS"] [role="option"]', // attachment items
+  box: "[aria-expanded]"                                        // one message (expanded or collapsed)
+};
+
+// One box per message. A collapsed message has two sender lines, so remove duplicates.
+function outlookBoxes() {
+  const boxes = [...document.querySelectorAll(OUTLOOK.from)]
+    .map((f) => f.closest(OUTLOOK.box))
+    .filter(Boolean);
+  return [...new Set(boxes)];
+}
+
+// Collapsed messages usually still contain the full message, so we only click
+// the ones that don't. This also avoids marking messages as read.
+async function expandOutlook() {
+  for (const box of outlookBoxes()) {
+    if (box.querySelector(OUTLOOK.body)) continue;
+    const row = box.querySelector('[role="heading"]:not([id])'); // the collapsed row, not the sender (that opens a profile card)
+    if (!row) continue;
+    realClick(row);
+    for (let t = 0; t < 10 && !box.querySelector(OUTLOOK.body); t++) {
+      await new Promise((r) => setTimeout(r, 200));
+    }
+  }
+}
+
+function extractOutlook() {
+  return outlookBoxes().map((box) => {
+    const fromEl = box.querySelector(OUTLOOK.from);
+    const dateEl = box.querySelector(OUTLOOK.date);
+    const bodyEl = box.querySelector(OUTLOOK.body);
+    // Attachment labels look like "report.pdf Open 4 MB": keep only the file name
+    const files = [...new Set([...box.querySelectorAll(OUTLOOK.attachments)]
+      .map((o) => {
+        const m = (o.getAttribute("aria-label") || "").match(/^(.+?\.[A-Za-z0-9]{2,5})(?=\s|$)/);
+        return m ? m[1] : null;
+      })
+      .filter(Boolean))];
+
+    return {
+      sender: fromEl ? fromEl.innerText.trim() : "(unknown)",
+      email: "", // Outlook doesn't show the address on the page
+      date: dateEl ? dateEl.innerText.trim() : "",
+      body: bodyEl ? cleanBody(bodyEl) : "(empty)",
+      attachments: files
+    };
+  });
+}
+
+async function getOutlookThread() {
+  const subjectEl = document.querySelector(OUTLOOK.subject);
+  if (!subjectEl) return null; // no conversation open
+
+  await expandOutlook();
+  const messages = removeRepeats(extractOutlook());
+  if (!messages.length) return null;
+
+  // Follow-up check: is the last sender's name in the tab title (where Outlook shows your name)?
+  const last = messages[messages.length - 1];
+  const lastName = last.sender.replace(/\s*\(.*\)\s*$/, "");
+
+  return {
+    text: buildPlainText(subjectEl.innerText.trim(), messages),
+    lastIsMine: !!lastName && document.title.includes(lastName),
+    missing: messages.some((m) => m.body === "(empty)") ? ["body"] : []
+  };
+}
+
 async function getThreadText() {
+  if (IS_OUTLOOK) return getOutlookThread();
   await expandAll();
   const missing = checkGmailNames();
   const subjectEl = document.querySelector(GMAIL.subject);
@@ -137,7 +215,7 @@ function buildPlainText(subject, messages) {
   text += "Email thread (oldest to newest)\n\n";
 
   messages.forEach((m, i) => {
-    text += "[" + (i + 1) + "] From: " + m.sender + " <" + m.email + "> | Date: " + m.date + "\n";
+    text += "[" + (i + 1) + "] From: " + m.sender + (m.email ? " <" + m.email + ">" : "") + " | Date: " + m.date + "\n";
     text += m.body + "\n";
     if (m.attachments.length) text += "[Attachments: " + m.attachments.join(", ") + "]\n";
     text += "\n";
