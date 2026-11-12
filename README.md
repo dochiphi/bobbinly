@@ -50,6 +50,19 @@ Use AI to get started faster, not to stop thinking.
 
 ---
 
+## A note on using AI
+
+Your own reply matters the most. Bobbinly helps you give an AI the full context, but the AI is only an assistant. It can misread a thread, get facts or dates wrong, or sound unlike you.
+
+- **Read every draft before you send it.** You're the one sending it, not the AI.
+- **Check the details:** names, dates, numbers, and anything you're agreeing to.
+- **Make it yours.** Edit the draft until it says what you actually mean, in your own voice.
+- **Think before pasting sensitive emails.** Once you paste a thread into an AI tool, it's handled under that tool's privacy policy, not Bobbinly's.
+
+Use AI to get started faster, not to stop thinking.
+
+---
+
 ## How it works
 
 **Extraction.** A content script reads the email page directly, with a separate reader for each site:
