@@ -8,7 +8,7 @@ Everything runs on your computer. Bobbinly has no servers, no accounts, and no a
 
 [![Watch the Bobbinly demo](https://img.youtube.com/vi/ALwjIeMbY0c/maxresdefault.jpg)](https://www.youtube.com/watch?v=ALwjIeMbY0c)
 
-> Chrome Web Store: *coming soon (in review)*
+> Chrome Web Store: [Bobbinly Extension](https://chromewebstore.google.com/detail/clnjipflponbmidnhmfhojodbjjckffn?utm_source=item-share-cb)
 > Website and privacy policy: [dochiphi.github.io/bobbinly-site](https://dochiphi.github.io/bobbinly-site/)
 
 ---
